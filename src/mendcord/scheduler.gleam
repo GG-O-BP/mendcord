@@ -15,7 +15,6 @@ pub fn run_once(
   bot bot: Bot,
   channel_id channel_id: String,
   seen seen: Seen,
-  bootstrap bootstrap: Bool,
 ) -> Seen {
   let is_seen = fn(guid) { state.has(seen, guid) }
 
@@ -39,24 +38,8 @@ pub fn run_once(
       )
       seen
     }
-    Ok(posts) ->
-      case bootstrap {
-        True -> seed(kind, seen, posts)
-        False -> announce(kind, bot, channel_id, seen, posts)
-      }
+    Ok(posts) -> announce(kind, bot, channel_id, seen, posts)
   }
-}
-
-fn seed(kind: FeedKind, seen: Seen, posts: List(Post)) -> Seen {
-  let guids = list.map(posts, fn(p) { p.guid })
-  logging.log(
-    logging.Info,
-    label(kind)
-      <> ": seeded "
-      <> int.to_string(list.length(guids))
-      <> " existing guid(s)",
-  )
-  state.insert_many(seen, guids)
 }
 
 fn announce(

@@ -42,7 +42,7 @@ src/
     ideas.gleam                — sitemap top N + SSR 상세 → List(Post)
     exchanges.gleam            — (ideas와 동일 패턴)
   mendcord/discord/post.gleam  — Post → Embed → send_message
-  mendcord/scheduler.gleam     — `run_once(kind, bot, channel, seen, bootstrap) -> Seen` 단일 함수
+  mendcord/scheduler.gleam     — `run_once(kind, bot, channel, seen) -> Seen` 단일 함수
   mendcord/state.gleam         — Seen 집합(+ JSON encode/decode)
   mendcord/state/store.gleam   — simplifile로 seen.json 읽기/쓰기
 
@@ -50,7 +50,7 @@ src/
 seen.json                      — 실행 간 상태. gitignore. Actions 캐시가 영속화 담당
 ```
 
-한 번의 실행에서 3 FeedKind를 순차 처리한다. `Seen` 상태는 kind 구분 없이 guid 전체를 담는 Set이며, 첫 실행/캐시 미스 시(`seen.json` 부재·빈 상태) **bootstrap 모드**로 전환되어 현재 피드 글을 전부 seen에만 기록하고 전송은 건너뛴다 — 이 규칙이 재시작/캐시 유실 시 대량 중복 공지를 차단한다.
+한 번의 실행에서 3 FeedKind를 순차 처리한다. `Seen` 상태는 kind 구분 없이 guid 전체를 담는 Set. 규약은 단순하다 — **seen에 없는 글은 모두 공지하고 seen에 추가한다.** 첫 실행과 캐시 유실 후 복구 때는 각 피드의 최신 항목(Questions RSS 20건 / Ideas·Exchanges sitemap top 15건씩, 합 최대 50건)이 한 번에 공지된다. 이는 장기 outage 후 "그 사이 올라온 글이 조용히 누락되는" 상황을 피하기 위한 의도된 동작이며, Discord 레이트 리밋(채널당 5msg/5sec)은 throttle로 자연 소화된다.
 
 ### 소스별 경로
 
@@ -106,6 +106,6 @@ EXCHANGES_CHANNEL_ID=
 ### GitHub Actions 호스팅 운영 메모
 
 - 리포는 public 전제(무제한 무료 분). private로 바꾸려면 월 2000분 한도 고려.
-- `seen.json`은 `actions/cache`로 run_id 키 저장, 다음 실행은 `mendcord-seen-` prefix로 최신 엔트리 복원. 캐시 미스 시 bootstrap 로직이 안전장치.
+- `seen.json`은 `actions/cache`로 run_id 키 저장, 다음 실행은 `mendcord-seen-` prefix로 최신 엔트리 복원. 캐시 미스 시 현재 피드 전체(최대 ~50건)가 한 번에 공지됨 — 의도된 복구 동작.
 - GitHub는 **리포에 커밋이 60일 없으면 schedule 워크플로우를 자동 disable**. 주기적 커밋 또는 수동 재활성화 필요.
 - 봇 Discord 온라인 표시(초록 점)는 **오프라인으로 보임** — gateway 접속을 하지 않기 때문. 포스팅엔 영향 없음.

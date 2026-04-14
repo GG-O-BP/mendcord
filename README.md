@@ -14,7 +14,7 @@ Written in [Gleam](https://gleam.run/) on the Erlang/BEAM runtime. No Mendix acc
 | Ideas | `/sitemaps/sitemap_ideas.xml` — top N by `lastmod` | Each URL fetched and parsed as a Schema.org `QAPage` |
 | Exchanges | `/sitemaps/sitemap_exchanges.xml` — top N by `lastmod` | Same pattern as Ideas |
 
-State across runs is a single JSON file, `seen.json`, holding the set of announced GUIDs. On first run (or any run where the file is missing/empty) the bot enters **seed mode** — it records the current posts as "seen" without announcing them, so that a fresh deployment or a cache miss never floods a channel with backlog.
+State across runs is a single JSON file, `seen.json`, holding the set of announced GUIDs. The rule is simple — if a GUID is not in `seen`, the bot announces it and adds it. On first run, or whenever the Actions cache is lost (for example after an extended outage), the current top of each feed (at most ~50 posts total) is announced in a single tick; Discord rate limits throttle the send naturally. This design prefers announcing a small initial batch over silently dropping anything the bot would have posted during a gap.
 
 ## Prerequisites
 

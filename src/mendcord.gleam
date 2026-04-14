@@ -35,18 +35,12 @@ fn tick(cfg: config.Config, seen: Seen) -> Nil {
       intents.default(),
     )
 
-  let bootstrap = state.is_empty(seen)
-  case bootstrap {
-    True -> logging.log(logging.Info, "state: empty seen.json; seeding")
-    False -> Nil
-  }
-
   let before = state.size(seen)
   let seen =
     seen
-    |> feed(Questions, bot, cfg.channels.questions, _, bootstrap)
-    |> feed(Ideas, bot, cfg.channels.ideas, _, bootstrap)
-    |> feed(Exchanges, bot, cfg.channels.exchanges, _, bootstrap)
+    |> feed(Questions, bot, cfg.channels.questions, _)
+    |> feed(Ideas, bot, cfg.channels.ideas, _)
+    |> feed(Exchanges, bot, cfg.channels.exchanges, _)
   let after = state.size(seen)
 
   case store.save(seen_path, seen) {
@@ -54,28 +48,18 @@ fn tick(cfg: config.Config, seen: Seen) -> Nil {
     Error(err) -> logging.log(logging.Error, "state: " <> store.describe(err))
   }
 
-  logging.log(logging.Info, summary(bootstrap, before, after))
+  logging.log(logging.Info, summary(before, after))
 }
 
-fn feed(
-  kind: FeedKind,
-  bot: Bot,
-  channel_id: String,
-  seen: Seen,
-  bootstrap: Bool,
-) -> Seen {
-  scheduler.run_once(kind:, bot:, channel_id:, seen:, bootstrap:)
+fn feed(kind: FeedKind, bot: Bot, channel_id: String, seen: Seen) -> Seen {
+  scheduler.run_once(kind:, bot:, channel_id:, seen:)
 }
 
-fn summary(bootstrap: Bool, before: Int, after: Int) -> String {
+fn summary(before: Int, after: Int) -> String {
   let delta = after - before
-  let tracked = "tracking " <> int.to_string(after) <> " guid(s)"
-  case bootstrap {
-    True -> "tick complete: seeded " <> int.to_string(delta) <> "; " <> tracked
-    False ->
-      "tick complete: announced "
-      <> int.to_string(delta)
-      <> " new post(s); "
-      <> tracked
-  }
+  "tick complete: announced "
+  <> int.to_string(delta)
+  <> " new post(s); tracking "
+  <> int.to_string(after)
+  <> " guid(s)"
 }

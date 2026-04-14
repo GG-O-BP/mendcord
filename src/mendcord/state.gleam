@@ -29,10 +29,6 @@ pub fn size(seen: Seen) -> Int {
   set.size(seen.guids)
 }
 
-pub fn is_empty(seen: Seen) -> Bool {
-  set.size(seen.guids) == 0
-}
-
 pub fn to_json(seen: Seen) -> String {
   seen.guids
   |> set.to_list
