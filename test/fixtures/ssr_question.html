@@ -1,0 +1,32 @@
+<html>
+<head>
+	<title>White screen after login in native mobile app – synchronization error in logs | Mendix Forum</title>
+	<meta name="Description" content="I’m currently developing a native mobile app in Mendix. Occasionally, after logging in through the developer app, the application shows only a white screen and does not load any UI.
+When I checked the logs, I noticed a synchronization-related error.
+Has anyone faced a similar issue? What could be causing this synchronization error, and how can I resolve it so the app loads correctly after login?
+">
+</head>
+<body itemscope itemtype="https://schema.org/QAPage">
+	<div itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
+		<h2 itemprop='name'>White screen after login in native mobile app – synchronization error in logs</h2>
+		<div itemprop='upvoteCount'>0</div>
+		<div itemprop='text'>I’m currently developing a native mobile app in Mendix. Occasionally, after logging in through the developer app, the application shows only a white screen and does not load any UI.When I checked the logs, I noticed a synchronization-related error.Has anyone faced a similar issue? What could be causing this synchronization error, and how can I resolve it so the app loads correctly after login?</div>
+		<div>asked
+			<time itemprop='dateCreated' datetime='2026-04-13'>2026-04-13</time>
+		</div>
+		<div itemprop='author' itemscope itemtype='https://schema.org/Person'><span itemprop='name'>Praveen G</span></div>
+		<div><span itemprop='answerCount'>1</span> answers</div>
+		<div itemprop='acceptedAnswer' itemscope itemtype='http://schema.org/Answer'>
+	<div itemprop='upvoteCount'>0</div>
+	<div itemprop='text'><p>Hi praveen</p><p><br /></p><p>There are Lot of reasons which leads to this scene but the primary issue is that the Sync is failed. Check the logs that <code><strong>Performing simultaneous synchronizations is not supported. Please try again after the current synchronization is completed"</strong></code><strong> means two sync operations were triggered at the same time. </strong></p><p>or there might be any conflict with the offline database sync which occurs when the mobile has the cache of database structure and the new sync is trying to execute.</p><p><br /></p><p>To verify this just try to clear the cache and check.</p><p><br /></p><p>I hope this helps!!</p></div>
+	<div>answered
+		<time itemprop='dateCreated' datetime='2026-04-13'>2026-04-13</time>
+	</div>
+	<div itemprop='author' itemscope itemtype='http://schema.org/Person'><span itemprop='name'>Gurumoorthy J</span></div>
+</div>
+
+	</div>
+
+</body>
+
+</html>

@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(gleam run)",
+      "Bash(gleam run:*)",
+      "Bash(gleam test)",
+      "Bash(gleam test:*)",
+      "Bash(gleam check)",
+      "Bash(gleam check:*)",
+      "Bash(gleam format)",
+      "Bash(gleam format:*)",
+      "Bash(gleam add:*)",
+      "Bash(gleam remove:*)",
+      "Bash(gleam deps list)",
+      "Bash(gleam deps update)",
+      "Bash(gleam deps download)",
+      "Bash(gleam docs build)",
+      "Bash(gleam new:*)",
+      "Bash(gleam --version)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git blame:*)",
+      "Bash(ls:*)",
+      "Bash(pwd)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(file:*)",
+      "Bash(which:*)",
+      "WebFetch(domain:hex.pm)",
+      "WebFetch(domain:hexdocs.pm)",
+      "WebFetch(domain:gleam.run)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:discord.com)",
+      "WebFetch(domain:docs.mendix.com)",
+      "WebFetch(domain:community.mendix.com)",
+      "WebFetch(domain:code.claude.com)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -fd:*)",
+      "Bash(git commit --amend:*)",
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.production)",
+      "Read(./.env.development)",
+      "Read(./**/.env)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Write(./.env)",
+      "Write(./.env.local)",
+      "Write(./.env.production)",
+      "Write(./.env.development)",
+      "Edit(./.env)",
+      "Edit(./.env.local)",
+      "Edit(./.env.production)",
+      "Edit(./.env.development)",
+      "Edit(./gleam.toml)",
+      "Edit(./manifest.toml)",
+      "Write(./manifest.toml)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && gleam format >/dev/null 2>&1 || true",
+            "timeout": 30,
+            "statusMessage": "gleam format"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && output=$(gleam check 2>&1); if [ $? -ne 0 ]; then printf 'gleam check failed:\\n%s\\n' \"$output\" >&2; exit 2; fi",
+            "timeout": 120,
+            "statusMessage": "gleam check"
+          }
+        ]
+      }
+    ]
+  }
+}

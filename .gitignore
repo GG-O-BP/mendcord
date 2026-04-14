@@ -1,0 +1,12 @@
+*.beam
+*.ez
+/build
+erl_crash.dump
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Claude Code: keep shared config tracked, ignore per-dev local overrides
+.claude/settings.local.json
