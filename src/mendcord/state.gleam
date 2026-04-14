@@ -1,5 +1,9 @@
+import gleam/dynamic/decode
+import gleam/json
 import gleam/list
+import gleam/result
 import gleam/set.{type Set}
+import gleam/string
 
 pub opaque type Seen {
   Seen(guids: Set(String))
@@ -23,4 +27,22 @@ pub fn insert_many(seen: Seen, guids: List(String)) -> Seen {
 
 pub fn size(seen: Seen) -> Int {
   set.size(seen.guids)
+}
+
+pub fn is_empty(seen: Seen) -> Bool {
+  set.size(seen.guids) == 0
+}
+
+pub fn to_json(seen: Seen) -> String {
+  seen.guids
+  |> set.to_list
+  |> list.sort(string.compare)
+  |> json.array(of: json.string)
+  |> json.to_string
+}
+
+pub fn from_json(raw: String) -> Result(Seen, Nil) {
+  json.parse(from: raw, using: decode.list(decode.string))
+  |> result.replace_error(Nil)
+  |> result.map(fn(guids) { insert_many(empty(), guids) })
 }

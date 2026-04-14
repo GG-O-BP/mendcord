@@ -1,8 +1,6 @@
 import discord_gleam/types/bot.{type Bot}
-import gleam/erlang/process.{type Subject}
 import gleam/int
 import gleam/list
-import gleam/otp/actor
 import gleam/result
 import logging
 import mendcord/discord/post as discord_post
@@ -12,65 +10,16 @@ import mendcord/forum/ideas
 import mendcord/forum/questions
 import mendcord/state.{type Seen}
 
-const first_tick_delay_ms = 500
-
-pub type Message {
-  Tick
-}
-
-type Loop {
-  Loop(
-    kind: FeedKind,
-    bot: Bot,
-    channel_id: String,
-    interval_ms: Int,
-    self: Subject(Message),
-    seen: Seen,
-    bootstrapped: Bool,
-  )
-}
-
-pub fn start(
+pub fn run_once(
   kind kind: FeedKind,
   bot bot: Bot,
   channel_id channel_id: String,
-  interval_ms interval_ms: Int,
-) -> Result(Subject(Message), actor.StartError) {
-  actor.new_with_initialiser(2000, fn(self) {
-    process.send_after(self, first_tick_delay_ms, Tick)
-    let loop =
-      Loop(
-        kind:,
-        bot:,
-        channel_id:,
-        interval_ms:,
-        self:,
-        seen: state.empty(),
-        bootstrapped: False,
-      )
-    actor.initialised(loop)
-    |> actor.returning(self)
-    |> Ok
-  })
-  |> actor.on_message(handle)
-  |> actor.start()
-  |> result.map(fn(started) { started.data })
-}
+  seen seen: Seen,
+  bootstrap bootstrap: Bool,
+) -> Seen {
+  let is_seen = fn(guid) { state.has(seen, guid) }
 
-fn handle(loop: Loop, message: Message) -> actor.Next(Loop, Message) {
-  case message {
-    Tick -> {
-      let next_loop = tick(loop)
-      process.send_after(loop.self, loop.interval_ms, Tick)
-      actor.continue(next_loop)
-    }
-  }
-}
-
-fn tick(loop: Loop) -> Loop {
-  let is_seen = fn(guid) { state.has(loop.seen, guid) }
-
-  let result = case loop.kind {
+  let result = case kind {
     Questions ->
       questions.recent(is_seen:)
       |> result.map_error(fn(_) { "questions fetch failed" })
@@ -86,55 +35,68 @@ fn tick(loop: Loop) -> Loop {
     Error(msg) -> {
       logging.log(
         logging.Warning,
-        label(loop.kind) <> ": " <> msg <> "; skipping tick",
+        label(kind) <> ": " <> msg <> "; skipping this feed",
       )
-      loop
+      seen
     }
     Ok(posts) ->
-      case loop.bootstrapped {
-        False -> bootstrap(loop, posts)
-        True -> announce(loop, posts)
+      case bootstrap {
+        True -> seed(kind, seen, posts)
+        False -> announce(kind, bot, channel_id, seen, posts)
       }
   }
 }
 
-fn bootstrap(loop: Loop, posts: List(Post)) -> Loop {
+fn seed(kind: FeedKind, seen: Seen, posts: List(Post)) -> Seen {
   let guids = list.map(posts, fn(p) { p.guid })
   logging.log(
     logging.Info,
-    label(loop.kind)
-      <> ": bootstrapped with "
+    label(kind)
+      <> ": seeded "
       <> int.to_string(list.length(guids))
       <> " existing guid(s)",
   )
-  Loop(..loop, seen: state.insert_many(loop.seen, guids), bootstrapped: True)
+  state.insert_many(seen, guids)
 }
 
-fn announce(loop: Loop, posts: List(Post)) -> Loop {
+fn announce(
+  kind: FeedKind,
+  bot: Bot,
+  channel_id: String,
+  seen: Seen,
+  posts: List(Post),
+) -> Seen {
   case posts {
-    [] -> loop
+    [] -> seen
     _ -> {
       logging.log(
         logging.Info,
-        label(loop.kind)
+        label(kind)
           <> ": found "
           <> int.to_string(list.length(posts))
           <> " new post(s)",
       )
       let posted_guids =
-        list.filter_map(posts, fn(post) { announce_one(loop, post) })
-      Loop(..loop, seen: state.insert_many(loop.seen, posted_guids))
+        list.filter_map(posts, fn(post) {
+          announce_one(kind, bot, channel_id, post)
+        })
+      state.insert_many(seen, posted_guids)
     }
   }
 }
 
-fn announce_one(loop: Loop, post: Post) -> Result(String, Nil) {
-  case discord_post.announce(loop.bot, loop.channel_id, post) {
+fn announce_one(
+  kind: FeedKind,
+  bot: Bot,
+  channel_id: String,
+  post: Post,
+) -> Result(String, Nil) {
+  case discord_post.announce(bot, channel_id, post) {
     Ok(_) -> Ok(post.guid)
     Error(msg) -> {
       logging.log(
         logging.Warning,
-        label(loop.kind) <> ": " <> msg <> " (guid=" <> post.guid <> ")",
+        label(kind) <> ": " <> msg <> " (guid=" <> post.guid <> ")",
       )
       Error(Nil)
     }

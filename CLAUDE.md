@@ -1,16 +1,17 @@
 # mendcord
 
-Mendix 커뮤니티 포럼(`community.mendix.com`)의 Questions·Ideas·Exchanges 세 종류 포스트를 주기적으로 수집해 Discord의 **세 채널에 각각 따로** 공지하는 봇. 언어는 Gleam, 런타임은 Erlang/BEAM. **인증 불필요** — 공개 피드(RSS)·사이트맵·Schema.org SSR만 사용.
+Mendix 커뮤니티 포럼(`community.mendix.com`)의 Questions·Ideas·Exchanges 세 종류 포스트를 주기적으로 수집해 Discord의 **세 채널에 각각 따로** 공지하는 봇. 언어는 Gleam, 런타임은 Erlang/BEAM. **인증 불필요** — 공개 피드(RSS)·사이트맵·Schema.org SSR만 사용. **실행 모델: GitHub Actions cron이 5분마다 `gleam run`을 호출 → 1회 폴링 후 종료**(상주 프로세스 아님).
 
 ## Tech stack
 
 - **Gleam 1.15+** · Erlang target · stdlib `gleam_stdlib`
-- **Discord**: `discord_gleam` (cyteon, v2.x) — bot client, gateway, message send
+- **Discord**: `discord_gleam` (cyteon, v2.x) — REST `send_message`만 사용 (gateway `start()` 호출하지 않음)
 - **HTTP**: `gleam_httpc` — 익명 GET (Discordbot UA)
 - **XML/HTML 파싱**: `gleam_regexp` — RSS / sitemap / Schema.org 마이크로데이터
-- **OTP**: `gleam_erlang` (`process.send_after`) + `gleam_otp` 액터 — 폴링 스케줄러
+- **상태 영속화**: `simplifile` + `gleam_json` — `seen.json` 읽기/쓰기
 - **Env**: `glenvy` (`.env` 로더 + 타입 getter)
 - **Log**: `logging` (lpil) — OTP logger 래퍼
+- **스케줄링**: 외부 cron(GitHub Actions `*/5 * * * *`). 프로세스 내부 타이머·액터 없음.
 
 새 의존성을 추가할 때는 hex.pm 최신 버전을 확인하고 `gleam add <pkg>`로만 설치. `gleam.toml`·`manifest.toml`을 직접 손으로 편집하지 않는다.
 
@@ -29,23 +30,27 @@ Mendix 커뮤니티 포럼(`community.mendix.com`)의 Questions·Ideas·Exchange
 
 ```
 src/
-  mendcord.gleam              — 엔트리포인트. 봇 1개 + 워커 3개 기동
-  mendcord/config.gleam       — env 로딩
-  mendcord/forum.gleam        — FeedKind·Post 공통 타입
+  mendcord.gleam               — 엔트리포인트. seen 로드 → 3 feed 순차 실행 → seen 저장 → 종료
+  mendcord/config.gleam        — env 로딩
+  mendcord/forum.gleam         — FeedKind·Post 공통 타입
   mendcord/forum/
-    client.gleam              — Discordbot UA 기반 GET 헬퍼
-    rss.gleam                 — /feed.xml 파서
-    sitemap.gleam             — XML 사이트맵 파서 + lastmod 정렬
-    ssr.gleam                 — Schema.org QAPage HTML 파서
-    questions.gleam           — RSS → List(Post)
-    ideas.gleam               — sitemap top N + SSR 상세 → List(Post)
-    exchanges.gleam           — (ideas와 동일 패턴)
-  mendcord/discord/post.gleam — Post → Embed → send_message
-  mendcord/scheduler.gleam    — 워커 액터 (FeedKind별 1개)
-  mendcord/state.gleam        — 본 guid 집합 (in-memory; 추후 파일 영속화)
+    client.gleam               — Discordbot UA 기반 GET 헬퍼
+    rss.gleam                  — /feed.xml 파서
+    sitemap.gleam              — XML 사이트맵 파서 + lastmod 정렬
+    ssr.gleam                  — Schema.org QAPage HTML 파서
+    questions.gleam            — RSS → List(Post)
+    ideas.gleam                — sitemap top N + SSR 상세 → List(Post)
+    exchanges.gleam            — (ideas와 동일 패턴)
+  mendcord/discord/post.gleam  — Post → Embed → send_message
+  mendcord/scheduler.gleam     — `run_once(kind, bot, channel, seen, bootstrap) -> Seen` 단일 함수
+  mendcord/state.gleam         — Seen 집합(+ JSON encode/decode)
+  mendcord/state/store.gleam   — simplifile로 seen.json 읽기/쓰기
+
+.github/workflows/poll.yml     — cron `*/5 * * * *` + actions/cache (seen.json)
+seen.json                      — 실행 간 상태. gitignore. Actions 캐시가 영속화 담당
 ```
 
-세 워커는 독립적으로 폴링하며 **각자의 `Seen` 상태와 각자의 Discord 채널**을 가진다. 같은 Discord 봇 토큰을 공유하지만 전송 채널이 다름.
+한 번의 실행에서 3 FeedKind를 순차 처리한다. `Seen` 상태는 kind 구분 없이 guid 전체를 담는 Set이며, 첫 실행/캐시 미스 시(`seen.json` 부재·빈 상태) **bootstrap 모드**로 전환되어 현재 피드 글을 전부 seen에만 기록하고 전송은 건너뛴다 — 이 규칙이 재시작/캐시 유실 시 대량 중복 공지를 차단한다.
 
 ### 소스별 경로
 
@@ -84,7 +89,7 @@ src/
 - Gleam 바이너리: `gleam 1.15.2` (`AppData/Local/Microsoft/WinGet/Links/gleam`).
 - 빌드 아티팩트 `/build`는 gitignore.
 
-### 필요한 env 변수 (`.env`, gitignore됨)
+### 필요한 env 변수 (`.env`는 로컬용·gitignore, CI는 GitHub Actions secrets)
 
 ```
 DISCORD_TOKEN=
@@ -92,7 +97,15 @@ DISCORD_CLIENT_ID=
 QUESTIONS_CHANNEL_ID=
 IDEAS_CHANNEL_ID=
 EXCHANGES_CHANNEL_ID=
-POLL_INTERVAL_SECONDS=300
 ```
 
+폴링 간격은 `.github/workflows/poll.yml`의 cron(`*/5 * * * *`)으로 고정. 코드 안에는 스케줄 관련 설정이 없음.
+
 봇은 Discord Developer Portal에서 앱 1개만 만들면 됨. `Send Messages` + `Embed Links` 권한으로 초대. 세 채널 ID는 각각 다른 채널을 가리켜야 함.
+
+### GitHub Actions 호스팅 운영 메모
+
+- 리포는 public 전제(무제한 무료 분). private로 바꾸려면 월 2000분 한도 고려.
+- `seen.json`은 `actions/cache`로 run_id 키 저장, 다음 실행은 `mendcord-seen-` prefix로 최신 엔트리 복원. 캐시 미스 시 bootstrap 로직이 안전장치.
+- GitHub는 **리포에 커밋이 60일 없으면 schedule 워크플로우를 자동 disable**. 주기적 커밋 또는 수동 재활성화 필요.
+- 봇 Discord 온라인 표시(초록 점)는 **오프라인으로 보임** — gateway 접속을 하지 않기 때문. 포스팅엔 영향 없음.

@@ -1,0 +1,53 @@
+# mendcord's deployment target: one poll of the Mendix community forum
+# followed by immediate process exit. The workflow is the "deployment and
+# publication" of this bot — the only thing this repo ships.
+name: poll
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    # Hard ceiling: a normal tick finishes in well under a minute. Any run that
+    # approaches this cap is stuck and should not keep burning minutes.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/cache/restore@v4
+        id: seen-cache
+        with:
+          path: seen.json
+          key: mendcord-seen-${{ github.run_id }}
+          restore-keys: |
+            mendcord-seen-
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          gleam-version: "1.15.2"
+          rebar3-version: "3"
+
+      - run: gleam deps download
+
+      - name: Run bot once
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          QUESTIONS_CHANNEL_ID: ${{ secrets.QUESTIONS_CHANNEL_ID }}
+          IDEAS_CHANNEL_ID: ${{ secrets.IDEAS_CHANNEL_ID }}
+          EXCHANGES_CHANNEL_ID: ${{ secrets.EXCHANGES_CHANNEL_ID }}
+        run: gleam run
+
+      - uses: actions/cache/save@v4
+        if: always() && hashFiles('seen.json') != ''
+        with:
+          path: seen.json
+          key: mendcord-seen-${{ github.run_id }}

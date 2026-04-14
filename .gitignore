@@ -8,5 +8,8 @@ erl_crash.dump
 .env.*
 !.env.example
 
+# Runtime state (persisted via Actions cache in CI)
+seen.json
+
 # Claude Code: keep shared config tracked, ignore per-dev local overrides
 .claude/settings.local.json
